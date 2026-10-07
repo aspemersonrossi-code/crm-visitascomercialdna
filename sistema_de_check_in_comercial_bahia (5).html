@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Check-in Comercial - DNA Laboratório · Vacinas · Genética (Bahia)</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    #map { height: calc(100vh - 80px); width: 100%; }
+    .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; }
+    .leaflet-popup-content { margin: 0; width: 340px !important; }
+    .city-tooltip {
+      background-color: #0f172a;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-weight: 600;
+      font-size: 11px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+    .city-tooltip::before {
+      border-top-color: #0f172a !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">
+
+  <!-- Header Clean e Profissional -->
+  <header class="bg-slate-900 text-white h-[80px] px-6 flex items-center justify-between shadow-lg relative z-[1001] border-b border-slate-800">
+    
+    <!-- Logo & Identidade Visual DNA -->
+    <div class="flex items-center gap-5">
+      <!-- Logo DNA Vetorizada Inline -->
+      <div class="bg-white px-3 py-2 rounded-xl border border-slate-700/80 shadow-md flex items-center justify-center shrink-0">
+        <svg class="h-8 w-auto" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Símbolo Genético / Onda Hélice DNA -->
+          <path d="M 20 55 C 10 35, 30 15, 45 20 C 55 25, 55 45, 65 55 C 75 65, 95 50, 85 25" stroke="#9acd32" stroke-width="7" stroke-linecap="round" fill="none"/>
+          <path d="M 20 25 C 35 15, 50 35, 60 45 C 70 55, 80 65, 95 45 C 100 35, 80 15, 65 20" stroke="#0080ff" stroke-width="7" stroke-linecap="round" fill="none"/>
+          <!-- Tipografia DNA -->
+          <text x="110" y="52" fill="#0072ce" font-family="'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="46" letter-spacing="-1">DNA</text>
+          <!-- Subtítulo -->
+          <text x="112" y="68" fill="#0080ff" font-family="'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="10.5" letter-spacing="1.5">LABORATÓRIO · VACINAS · GENÉTICA</text>
+        </svg>
+      </div>
+
+      <!-- Divisória -->
+      <div class="h-9 w-px bg-slate-700/60 hidden sm:block"></div>
+
+      <!-- Título do Sistema -->
+      <div class="hidden sm:block">
+        <div class="flex items-center gap-2">
+          <h1 class="text-base font-bold text-slate-100 tracking-tight">CRM Comercial Geográfico</h1>
+          <span class="text-[10px] font-semibold uppercase tracking-wider bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded border border-sky-500/20">Bahia</span>
+        </div>
+        <p class="text-xs text-slate-400 mt-0.5">Mapeamento de Cobertura e Check-in com Validação GPS</p>
+      </div>
+    </div>
+
+    <!-- Campo de Busca Centralizado -->
+    <div class="relative w-48 sm:w-64 lg:w-80">
+      <div class="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-lg px-3 py-2 text-xs focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500 transition">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 mr-2 shrink-0"></i>
+        <input type="text" id="search-input" placeholder="Buscar município..." 
+               oninput="onSearchInput(this.value)" 
+               class="bg-transparent border-none outline-none text-white w-full placeholder-slate-400 text-xs">
+      </div>
+      <!-- Sugestões da Busca -->
+      <div id="search-results" class="hidden absolute left-0 right-0 top-full mt-1.5 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto z-[2000] border-t-2 border-t-sky-500"></div>
+    </div>
+
+    <!-- Menu de Ações -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <!-- Configurar Formulário -->
+      <button onclick="openFormBuilderModal()" title="Personalizar Formulário" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700/80 px-3 py-2 rounded-lg border border-slate-700/80 text-xs font-medium text-slate-200 transition shadow-sm">
+        <i data-lucide="sliders" class="w-4 h-4 text-amber-400"></i>
+        <span class="hidden md:inline">Formulário</span>
+      </button>
+
+      <!-- Gestão de Consultores -->
+      <button onclick="openConsultoresModal()" title="Gerenciar Equipe" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700/80 px-3 py-2 rounded-lg border border-slate-700/80 text-xs font-medium text-slate-200 transition shadow-sm">
+        <i data-lucide="users" class="w-4 h-4 text-sky-400"></i>
+        <span class="hidden md:inline">Consultores</span>
+      </button>
+
+      <div class="h-6 w-px bg-slate-700/60 hidden lg:block"></div>
+
+      <!-- Métricas Clicáveis -->
+      <div class="flex items-center gap-1.5 bg-slate-950/40 p-1 rounded-lg border border-slate-800">
+        <button onclick="openCityList('visited')" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-md transition cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+          <span class="text-xs font-semibold text-slate-300">Visitados: <strong id="count-visited" class="text-emerald-400">0</strong></span>
+        </button>
+
+        <button onclick="openCityList('pending')" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-md transition cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"></span>
+          <span class="text-xs font-semibold text-slate-300">Pendentes: <strong id="count-pending" class="text-rose-400">417</strong></span>
+        </button>
+      </div>
+      
+      <!-- Backup -->
+      <div class="flex gap-1 border-l border-slate-700/80 pl-2">
+        <button onclick="exportData()" title="Exportar Relatório / Backup (JSON)" class="p-2 bg-slate-800 hover:bg-slate-700/80 rounded-lg text-slate-300 transition border border-slate-700/80">
+          <i data-lucide="download" class="w-4 h-4"></i>
+        </button>
+        <label title="Importar Dados" class="p-2 bg-slate-800 hover:bg-slate-700/80 rounded-lg text-slate-300 cursor-pointer transition border border-slate-700/80">
+          <i data-lucide="upload" class="w-4 h-4"></i>
+          <input type="file" id="import-file" accept=".json" onchange="importData(event)" class="hidden">
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- Modal: Edição Personalizada de Formulário -->
+  <div id="modal-form-builder" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 text-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+        <h2 class="text-base font-bold flex items-center gap-2">
+          <i data-lucide="sliders" class="text-amber-400 w-5 h-5"></i>
+          Personalizar Perguntas e Opções da Visita
+        </h2>
+        <button onclick="closeFormBuilderModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      
+      <div id="builder-questions-list" class="p-4 overflow-y-auto space-y-4 flex-1"></div>
+
+      <div class="p-4 border-t border-slate-800 flex justify-between items-center bg-slate-900/50">
+        <button onclick="addNewQuestion()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+          <i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Adicionar Pergunta
+        </button>
+        <button onclick="saveCustomFormSchema()" class="bg-emerald-600 hover:bg-emerald-500 px-5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+          <i data-lucide="save" class="w-4 h-4"></i> Salvar Formulário
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Cadastro/Gestão de Consultores -->
+  <div id="modal-consultores" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 text-white rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
+      <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+        <h2 class="text-base font-bold flex items-center gap-2">
+          <i data-lucide="user-plus" class="text-sky-400 w-5 h-5"></i>
+          Consultores Comerciais (DNA)
+        </h2>
+        <button onclick="closeConsultoresModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="p-4 space-y-4">
+        <div class="flex gap-2">
+          <input type="text" id="new-consultor-name" placeholder="Nome do consultor (ex: Emerson)" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none flex-1 focus:border-sky-500">
+          <button onclick="addConsultor()" class="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded-lg text-xs font-semibold transition">Adicionar</button>
+        </div>
+        <div>
+          <h3 class="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Equipe Cadastrada</h3>
+          <div id="consultores-list" class="space-y-1.5 max-h-48 overflow-y-auto pr-1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Lista de Cidades (Visitadas / Pendentes) -->
+  <div id="list-modal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 text-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+      <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+        <h2 id="modal-title" class="text-base font-bold flex items-center gap-2"></h2>
+        <button onclick="closeCityList()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="p-3 border-b border-slate-800">
+        <input type="text" id="modal-filter" placeholder="Filtrar município ou consultor..." oninput="filterModalList(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none">
+      </div>
+      <div id="modal-content" class="p-4 overflow-y-auto flex-1 space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- Container do Mapa -->
+  <div class="relative w-full">
+    <!-- Overlay de Carregamento -->
+    <div id="loading" class="absolute inset-0 bg-slate-900/90 z-[1000] flex flex-col items-center justify-center gap-3 text-white">
+      <div class="w-10 h-10 border-4 border-slate-700 border-t-sky-500 rounded-full animate-spin"></div>
+      <p class="font-semibold text-sm text-slate-300">Carregando mapa dos 417 municípios da Bahia...</p>
+    </div>
+
+    <!-- Elemento do Mapa -->
+    <div id="map"></div>
+  </div>
+
+  <script>
+    const map = L.map('map').setView([-12.9714, -38.5014], 7);
+
+    // Camada de Mapa Base (Esri Topo)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
+      maxZoom: 18
+    }).addTo(map);
+
+    // Dados armazenados localmente
+    let visitedCities = JSON.parse(localStorage.getItem('lab_visited_cities_ba')) || {};
+    let consultores = JSON.parse(localStorage.getItem('lab_consultores_ba')) || ['Emerson', 'Juliana Silva', 'Rodrigo Costa'];
+    
+    // Esquema Padrão de Formulário Personalizado
+    const defaultFormSchema = [
+      {
+        id: 'clienteTipo',
+        label: 'Tipo de Cliente / Conta',
+        type: 'select',
+        options: [
+          'Médico Prescritor (Onco/Gineco/Pediatra)',
+          'Laboratório Parceiro (Apoio)',
+          'Hospital / Clínica Multidisciplinar',
+          'Posto de Coleta / Clínica de Vacinação'
+        ]
+      },
+      {
+        id: 'foco',
+        label: 'Linha / Foco do Atendimento',
+        type: 'select',
+        options: [
+          'Análises Clínicas e Exames de Rotina',
+          'Vacinas (Calendário / Campanhas)',
+          'Painéis Genéticos (NIPT, CGH, Exoma)',
+          'Tabela de Apoio / Parcerias'
+        ]
+      },
+      {
+        id: 'kits',
+        label: 'Kits / Materiais Entregues',
+        type: 'number',
+        options: []
+      },
+      {
+        id: 'obs',
+        label: 'Anotações / Próximos Passos',
+        type: 'text',
+        options: []
+      }
+    ];
+
+    let customFormSchema = JSON.parse(localStorage.getItem('lab_form_schema_ba')) || defaultFormSchema;
+    let geojsonLayer = null;
+    let totalCities = 0;
+    let citiesData = [];
+    let currentModalType = '';
+    let selectedLayer = null;
+
+    // Estilos do Mapa
+    const styleVisitedRecent = { fillColor: '#10b981', weight: 1.5, opacity: 1, color: '#047857', fillOpacity: 0.75 };
+    const styleVisitedOld = { fillColor: '#f59e0b', weight: 1.5, opacity: 1, color: '#b45309', fillOpacity: 0.75 };
+    const stylePending = { fillColor: '#f43f5e', weight: 1, opacity: 0.8, color: '#9f1239', fillOpacity: 0.4 };
+    const styleHover = { weight: 3, color: '#38bdf8', fillOpacity: 0.85 };
+    const styleSelected = { weight: 4, color: '#f59e0b', fillOpacity: 0.9 };
+
+    function getCityCode(feature) {
+      return String(feature.properties.id || feature.properties.CD_MUN || feature.properties.codarea);
+    }
+
+    // --- GESTÃO DO FORMULÁRIO PERSONALIZADO ---
+    function openFormBuilderModal() {
+      renderFormBuilder();
+      document.getElementById('modal-form-builder').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeFormBuilderModal() {
+      document.getElementById('modal-form-builder').classList.add('hidden');
+    }
+
+    function renderFormBuilder() {
+      const container = document.getElementById('builder-questions-list');
+      container.innerHTML = customFormSchema.map((field, idx) => `
+        <div class="bg-slate-800 p-3.5 rounded-lg border border-slate-700 space-y-3 relative text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <input type="text" value="${field.label}" onchange="updateQuestionLabel(${idx}, this.value)" placeholder="Título da Pergunta" class="bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white outline-none font-semibold flex-1 focus:border-amber-400">
+            <select onchange="updateQuestionType(${idx}, this.value)" class="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-slate-300 outline-none">
+              <option value="select" ${field.type === 'select' ? 'selected' : ''}>Seleção (Dropdown)</option>
+              <option value="text" ${field.type === 'text' ? 'selected' : ''}>Texto Livre</option>
+              <option value="number" ${field.type === 'number' ? 'selected' : ''}>Número</option>
+            </select>
+            <button onclick="removeQuestion(${idx})" class="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded transition">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          ${field.type === 'select' ? `
+            <div class="pl-3 border-l-2 border-slate-700 space-y-2">
+              <label class="block text-[10px] uppercase font-bold text-slate-400">Opções de Resposta</label>
+              <div class="space-y-1.5">
+                ${field.options.map((opt, optIdx) => `
+                  <div class="flex items-center gap-2">
+                    <input type="text" value="${opt}" onchange="updateOptionValue(${idx}, ${optIdx}, this.value)" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 outline-none flex-1 text-xs">
+                    <button onclick="removeOption(${idx}, ${optIdx})" class="text-slate-400 hover:text-rose-400 p-1">
+                      <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                `).join('')}
+              </div>
+              <button onclick="addOption(${idx})" class="text-[11px] text-amber-400 font-semibold hover:underline flex items-center gap-1 mt-1">
+                <i data-lucide="plus" class="w-3 h-3"></i> Adicionar Opção
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function updateQuestionLabel(idx, val) {
+      customFormSchema[idx].label = val;
+    }
+
+    function updateQuestionType(idx, type) {
+      customFormSchema[idx].type = type;
+      if (type === 'select' && !customFormSchema[idx].options) {
+        customFormSchema[idx].options = ['Nova Opção'];
+      }
+      renderFormBuilder();
+    }
+
+    function addOption(idx) {
+      customFormSchema[idx].options.push('Nova Opção');
+      renderFormBuilder();
+    }
+
+    function updateOptionValue(qIdx, optIdx, val) {
+      customFormSchema[qIdx].options[optIdx] = val;
+    }
+
+    function removeOption(qIdx, optIdx) {
+      customFormSchema[qIdx].options.splice(optIdx, 1);
+      renderFormBuilder();
+    }
+
+    function addNewQuestion() {
+      customFormSchema.push({
+        id: 'campo_' + Date.now(),
+        label: 'Nova Pergunta Personalizada',
+        type: 'text',
+        options: []
+      });
+      renderFormBuilder();
+    }
+
+    function removeQuestion(idx) {
+      customFormSchema.splice(idx, 1);
+      renderFormBuilder();
+    }
+
+    function saveCustomFormSchema() {
+      localStorage.setItem('lab_form_schema_ba', JSON.stringify(customFormSchema));
+      closeFormBuilderModal();
+      alert('Estrutura do formulário atualizada com sucesso!');
+    }
+
+    // --- CONSULTORES ---
+    function saveConsultores() {
+      localStorage.setItem('lab_consultores_ba', JSON.stringify(consultores));
+      renderConsultoresList();
+    }
+
+    function addConsultor() {
+      const input = document.getElementById('new-consultor-name');
+      const name = input.value.trim();
+      if (name && !consultores.includes(name)) {
+        consultores.push(name);
+        input.value = '';
+        saveConsultores();
+      }
+    }
+
+    function removeConsultor(name) {
+      consultores = consultores.filter(c => c !== name);
+      saveConsultores();
+    }
+
+    function renderConsultoresList() {
+      const container = document.getElementById('consultores-list');
+      if (!container) return;
+      if (consultores.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500">Nenhum consultor cadastrado.</p>`;
+        return;
+      }
+      container.innerHTML = consultores.map(c => `
+        <div class="flex items-center justify-between p-2 bg-slate-800/80 rounded-lg border border-slate-700/50 text-xs">
+          <span class="font-medium text-slate-200">${c}</span>
+          <button onclick="removeConsultor('${c}')" class="text-rose-400 hover:text-rose-300 p-1">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function openConsultoresModal() {
+      renderConsultoresList();
+      document.getElementById('modal-consultores').classList.remove('hidden');
+    }
+
+    function closeConsultoresModal() {
+      document.getElementById('modal-consultores').classList.add('hidden');
+    }
+
+    // Calcular dias desde a última visita
+    function getDaysSinceVisit(dateString) {
+      if (!dateString) return 999;
+      const parts = dateString.split('/');
+      if (parts.length !== 3) return 999;
+      const visitDate = new Date(parts[2], parts[1] - 1, parts[0]);
+      const diffTime = Math.abs(new Date() - visitDate);
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    function getCityStyle(cityCode) {
+      const info = visitedCities[cityCode];
+      if (!info) return stylePending;
+      const days = getDaysSinceVisit(info.data);
+      if (days <= 30) return styleVisitedRecent;
+      return styleVisitedOld;
+    }
+
+    function updateMapStyles() {
+      if (!geojsonLayer) return;
+      geojsonLayer.eachLayer(layer => {
+        const cityCode = getCityCode(layer.feature);
+        if (selectedLayer === layer) {
+          layer.setStyle(styleSelected);
+        } else {
+          layer.setStyle(getCityStyle(cityCode));
+        }
+      });
+    }
+
+    function updateCounters() {
+      const visitedCount = Object.keys(visitedCities).length;
+      document.getElementById('count-visited').innerText = visitedCount;
+      document.getElementById('count-pending').innerText = Math.max(0, totalCities - visitedCount);
+    }
+
+    // Realizar Check-in com Captura de GPS e Dados Dinâmicos
+    function performCheckIn(cityCode, cityName, lat, lng) {
+      const consultor = document.getElementById(`select-consultor-${cityCode}`)?.value || 'Não atribuído';
+      
+      const dynamicAnswers = {};
+      customFormSchema.forEach(field => {
+        const elem = document.getElementById(`dyn-${field.id}-${cityCode}`);
+        if (elem) {
+          dynamicAnswers[field.id] = elem.value;
+        }
+      });
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+            const distance = lat && lng ? calculateDistance(userLat, userLng, lat, lng).toFixed(1) : 'N/A';
+
+            saveVisitData(cityCode, cityName, consultor, dynamicAnswers, {
+              validated: true,
+              userLat,
+              userLng,
+              distanceKm: distance
+            });
+          },
+          (error) => {
+            alert('Aviso: GPS não ativado ou sem permissão. O check-in será salvo sem coordenadas exatas.');
+            saveVisitData(cityCode, cityName, consultor, dynamicAnswers, { validated: false });
+          },
+          { timeout: 8000, enableHighAccuracy: true }
+        );
+      } else {
+        saveVisitData(cityCode, cityName, consultor, dynamicAnswers, { validated: false });
+      }
+    }
+
+    function saveVisitData(cityCode, cityName, consultor, answers, gpsInfo) {
+      visitedCities[cityCode] = {
+        nome: cityName,
+        consultor: consultor,
+        respostas: answers,
+        data: new Date().toLocaleDateString('pt-BR'),
+        hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        gps: gpsInfo
+      };
+
+      localStorage.setItem('lab_visited_cities_ba', JSON.stringify(visitedCities));
+      updateMapStyles();
+      updateCounters();
+      map.closePopup();
+
+      if (!document.getElementById('list-modal').classList.contains('hidden')) {
+        openCityList(currentModalType);
+      }
+    }
+
+    function removeVisit(cityCode) {
+      delete visitedCities[cityCode];
+      localStorage.setItem('lab_visited_cities_ba', JSON.stringify(visitedCities));
+      updateMapStyles();
+      updateCounters();
+      map.closePopup();
+
+      if (!document.getElementById('list-modal').classList.contains('hidden')) {
+        openCityList(currentModalType);
+      }
+    }
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // Selecionar Município no Mapa SEM abrir o formulário
+    function selectCityOnMap(cityCode) {
+      geojsonLayer.eachLayer(layer => {
+        if (getCityCode(layer.feature) === cityCode) {
+          if (selectedLayer && selectedLayer !== layer) {
+            const prevCode = getCityCode(selectedLayer.feature);
+            selectedLayer.setStyle(getCityStyle(prevCode));
+          }
+          selectedLayer = layer;
+          layer.setStyle(styleSelected);
+          layer.bringToFront();
+
+          map.fitBounds(layer.getBounds(), { maxZoom: 11, animate: true, padding: [20, 20] });
+          
+          if (layer.getTooltip()) {
+            layer.openTooltip();
+          }
+        }
+      });
+
+      closeCityList();
+      document.getElementById('search-results').classList.add('hidden');
+      document.getElementById('search-input').value = '';
+    }
+
+    function onSearchInput(query) {
+      const resultsContainer = document.getElementById('search-results');
+      if (!query || query.trim().length === 0) {
+        resultsContainer.classList.add('hidden');
+        return;
+      }
+
+      const q = query.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const matches = citiesData.filter(c => 
+        c.normalizedName.includes(q)
+      ).slice(0, 10);
+
+      if (matches.length === 0) {
+        resultsContainer.innerHTML = `<div class="p-3 text-xs text-slate-400">Nenhum município encontrado</div>`;
+      } else {
+        resultsContainer.innerHTML = matches.map(c => `
+          <div onclick="selectCityOnMap('${c.code}')" class="p-2.5 hover:bg-slate-700 cursor-pointer flex justify-between items-center text-xs border-b border-slate-700/50 last:border-none">
+            <div>
+              <span class="font-semibold text-white block">${c.name}</span>
+              ${c.isVisited && visitedCities[c.code]?.consultor ? `<span class="text-[10px] text-slate-400">Resp: ${visitedCities[c.code].consultor}</span>` : ''}
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] ${c.isVisited ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
+              ${c.isVisited ? 'Visitado' : 'Pendente'}
+            </span>
+          </div>
+        `).join('');
+      }
+      resultsContainer.classList.remove('hidden');
+    }
+
+    function openCityList(type) {
+      currentModalType = type;
+      const modal = document.getElementById('list-modal');
+      const title = document.getElementById('modal-title');
+      document.getElementById('modal-filter').value = '';
+
+      if (type === 'visited') {
+        title.innerHTML = `<i data-lucide="check-circle-2" class="text-emerald-400 w-5 h-5"></i> Municípios Visitados`;
+      } else {
+        title.innerHTML = `<i data-lucide="clock" class="text-rose-400 w-5 h-5"></i> Municípios Pendentes`;
+      }
+
+      renderModalItems();
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function renderModalItems(filter = '') {
+      const container = document.getElementById('modal-content');
+      const q = filter.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      const filtered = citiesData.filter(c => {
+        const isMatch = (currentModalType === 'visited' && c.isVisited) || (currentModalType === 'pending' && !c.isVisited);
+        const info = visitedCities[c.code];
+        const consultorMatch = info && info.consultor && info.consultor.toLowerCase().includes(q);
+        return isMatch && (c.normalizedName.includes(q) || consultorMatch);
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Nenhum município nesta lista.</p>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(c => {
+        const info = visitedCities[c.code];
+        return `
+          <div class="p-3 bg-slate-800/90 rounded-lg border border-slate-700/60 text-xs space-y-2">
+            <div class="flex items-center justify-between">
+              <div onclick="selectCityOnMap('${c.code}')" class="cursor-pointer">
+                <p class="font-bold text-white hover:text-emerald-400 text-sm transition">${c.name}</p>
+                ${c.isVisited ? `
+                  <p class="text-[11px] text-emerald-400 font-medium">Consultor: ${info.consultor || 'N/I'}</p>
+                  <p class="text-[10px] text-slate-400">Check-in: ${info.data} às ${info.hora}</p>
+                ` : '<p class="text-[10px] text-rose-400 font-medium">Sem visitas registradas</p>'}
+              </div>
+              <button onclick="selectCityOnMap('${c.code}')" class="p-1.5 bg-slate-700 hover:bg-slate-600 rounded-md text-white transition">
+                <i data-lucide="map-pin" class="w-4 h-4"></i>
+              </button>
+            </div>
+            ${c.isVisited && info.respostas ? `
+              <div class="bg-slate-900/60 p-2 rounded border border-slate-700/40 text-[11px] space-y-1">
+                ${Object.entries(info.respostas).map(([key, val]) => {
+                  const schemaItem = customFormSchema.find(s => s.id === key);
+                  const label = schemaItem ? schemaItem.label : key;
+                  return `<p><span class="text-slate-400">${label}:</span> <strong class="text-slate-200">${val || '-'}</strong></p>`;
+                }).join('')}
+                ${info.gps && info.gps.validated ? `<p class="text-[10px] text-emerald-400 mt-1">✔ GPS Confirmado (${info.gps.distanceKm} km do centro)</p>` : ''}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function filterModalList(val) {
+      renderModalItems(val);
+    }
+
+    function closeCityList() {
+      document.getElementById('list-modal').classList.add('hidden');
+    }
+
+    // Carregamento GeoJSON
+    async function loadBahiaGeoJSON() {
+      try {
+        const response = await fetch('https://raw.githubusercontent.com/tbrugz/geodata-br/master/geojson/geojs-29-mun.json');
+        const data = await response.json();
+
+        totalCities = data.features.length;
+
+        citiesData = data.features.map(f => {
+          const code = getCityCode(f);
+          const name = f.properties.name || "Município";
+          return {
+            code: code,
+            name: name,
+            normalizedName: name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""),
+            get isVisited() { return !!visitedCities[this.code]; }
+          };
+        }).sort((a, b) => a.name.localeCompare(b.name));
+
+        geojsonLayer = L.geoJSON(data, {
+          style: function(feature) {
+            return getCityStyle(getCityCode(feature));
+          },
+          onEachFeature: function(feature, layer) {
+            const cityCode = getCityCode(feature);
+            const cityName = feature.properties.name || "Município";
+            const bounds = layer.getBounds();
+            const center = bounds.getCenter();
+
+            layer.bindTooltip(cityName, {
+              permanent: false,
+              direction: 'top',
+              className: 'city-tooltip',
+              sticky: true
+            });
+
+            layer.on({
+              mouseover: (e) => {
+                const l = e.target;
+                if (selectedLayer !== l) {
+                  l.setStyle(styleHover);
+                  l.bringToFront();
+                }
+              },
+              mouseout: (e) => {
+                const l = e.target;
+                if (selectedLayer !== l) {
+                  l.setStyle(getCityStyle(cityCode));
+                }
+              },
+              click: (e) => {
+                // Destacar camada selecionada
+                if (selectedLayer && selectedLayer !== layer) {
+                  const prevCode = getCityCode(selectedLayer.feature);
+                  selectedLayer.setStyle(getCityStyle(prevCode));
+                }
+                selectedLayer = layer;
+                layer.setStyle(styleSelected);
+
+                const isVisited = !!visitedCities[cityCode];
+                const info = visitedCities[cityCode] || {};
+                const respostas = info.respostas || {};
+
+                const consultorOptions = consultores.map(c => 
+                  `<option value="${c}" ${info.consultor === c ? 'selected' : ''}>${c}</option>`
+                ).join('');
+
+                // Renderizar Campos do Formulário Dinamicamente
+                const dynamicFieldsHTML = customFormSchema.map(field => {
+                  const val = respostas[field.id] !== undefined ? respostas[field.id] : '';
+                  
+                  if (field.type === 'select') {
+                    return `
+                      <div>
+                        <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">${field.label}</label>
+                        <select id="dyn-${field.id}-${cityCode}" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-sky-500">
+                          ${field.options.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                        </select>
+                      </div>
+                    `;
+                  } else if (field.type === 'number') {
+                    return `
+                      <div>
+                        <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">${field.label}</label>
+                        <input type="number" id="dyn-${field.id}-${cityCode}" value="${val}" min="0" placeholder="0" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-sky-500">
+                      </div>
+                    `;
+                  } else {
+                    return `
+                      <div>
+                        <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">${field.label}</label>
+                        <input type="text" id="dyn-${field.id}-${cityCode}" value="${val}" placeholder="Digite aqui..." class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-sky-500">
+                      </div>
+                    `;
+                  }
+                }).join('');
+
+                const popupContent = `
+                  <div class="bg-slate-900 text-white rounded-xl shadow-xl overflow-hidden border border-slate-800 text-xs">
+                    <div class="bg-slate-800 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
+                      <h3 class="font-bold text-sm text-white">${cityName}</h3>
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isVisited ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
+                        ${isVisited ? 'VISITADO' : 'PENDENTE'}
+                      </span>
+                    </div>
+
+                    <div class="p-4 space-y-3 max-h-[360px] overflow-y-auto">
+                      <div>
+                        <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Consultor Responsável</label>
+                        <select id="select-consultor-${cityCode}" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-sky-500">
+                          <option value="Não atribuído">-- Selecione o Consultor --</option>
+                          ${consultorOptions}
+                        </select>
+                      </div>
+
+                      ${dynamicFieldsHTML}
+
+                      ${isVisited ? `
+                        <div class="bg-slate-800/80 p-2 rounded border border-slate-700/50 text-[10px] space-y-1">
+                          <p class="text-slate-300">Último Check-in: <strong>${info.data} às ${info.hora}</strong></p>
+                          ${info.gps && info.gps.validated ? `<p class="text-emerald-400 font-semibold">✔ Validado via GPS (${info.gps.distanceKm} km do centro)</p>` : ''}
+                        </div>
+                      ` : ''}
+
+                      <div class="flex gap-2 pt-1">
+                        <button onclick="performCheckIn('${cityCode}', '${cityName}', ${center.lat}, ${center.lng})" 
+                          class="flex-1 py-2 px-3 rounded-md text-white text-xs font-semibold shadow transition bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-1.5">
+                          <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
+                          ${isVisited ? 'Atualizar Check-in (GPS)' : 'Realizar Check-in (GPS)'}
+                        </button>
+                        ${isVisited ? `
+                          <button onclick="removeVisit('${cityCode}')" title="Desfazer Check-in" 
+                            class="py-2 px-2.5 rounded-md text-rose-300 bg-rose-500/20 hover:bg-rose-500 hover:text-white transition">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                          </button>
+                        ` : ''}
+                      </div>
+                    </div>
+                  </div>
+                `;
+                layer.bindPopup(popupContent).openPopup();
+                setTimeout(() => lucide.createIcons(), 50);
+              }
+            });
+          }
+        }).addTo(map);
+
+        updateCounters();
+        document.getElementById('loading').style.display = 'none';
+        lucide.createIcons();
+
+      } catch (error) {
+        console.error("Erro ao carregar mapa da Bahia:", error);
+        alert("Erro ao carregar a malha dos municípios da Bahia.");
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      const searchBox = document.getElementById('search-input');
+      const resultsContainer = document.getElementById('search-results');
+      if (searchBox && !searchBox.contains(e.target) && resultsContainer && !resultsContainer.contains(e.target)) {
+        resultsContainer.classList.add('hidden');
+      }
+    });
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+        visitas: visitedCities,
+        consultores: consultores,
+        formSchema: customFormSchema,
+        exportadoEm: new Date().toISOString()
+      }, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `relatorio_comercial_dna_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importData(event) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.visitas) {
+            visitedCities = imported.visitas;
+            if (imported.consultores) consultores = imported.consultores;
+            if (imported.formSchema) customFormSchema = imported.formSchema;
+            localStorage.setItem('lab_visited_cities_ba', JSON.stringify(visitedCities));
+            localStorage.setItem('lab_consultores_ba', JSON.stringify(consultores));
+            localStorage.setItem('lab_form_schema_ba', JSON.stringify(customFormSchema));
+            updateMapStyles();
+            updateCounters();
+            alert('Dados, perguntas e relatórios sincronizados com sucesso!');
+          }
+        } catch (err) {
+          alert('Arquivo JSON inválido.');
+        }
+      };
+      reader.readAsText(event.target.files[0]);
+    }
+
+    loadBahiaGeoJSON();
+  </script>
+</body>
+</html>
