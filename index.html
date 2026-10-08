@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Sistema de Check-in Comercial - DNA Laboratório · Vacinas · Genética (Bahia)</title>
   
   <!-- Tailwind CSS -->
@@ -16,9 +16,28 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
-    #map { height: calc(100vh - 80px); width: 100%; }
-    .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; }
-    .leaflet-popup-content { margin: 0; width: 340px !important; }
+    /* Ajuste dinâmico do mapa ocupando toda a altura livre da tela */
+    #map-container {
+      height: calc(100vh - 128px);
+    }
+    @media (min-width: 768px) {
+      #map-container {
+        height: calc(100vh - 72px);
+      }
+    }
+    #map { height: 100%; width: 100%; }
+
+    /* Popups responsivos no Leaflet */
+    .leaflet-popup-content-wrapper { 
+      border-radius: 12px; 
+      padding: 0; 
+      overflow: hidden; 
+    }
+    .leaflet-popup-content { 
+      margin: 0 !important; 
+      width: 88vw !important; 
+      max-width: 340px !important; 
+    }
     .city-tooltip {
       background-color: #0f172a;
       color: #ffffff;
@@ -34,16 +53,16 @@
     }
   </style>
 </head>
-<body class="bg-slate-100 font-sans text-slate-800 antialiased overflow-hidden">
+<body class="bg-slate-100 font-sans text-slate-800 antialiased overflow-x-hidden md:overflow-hidden">
 
-  <!-- Header Clean e Profissional -->
-  <header class="bg-slate-900 text-white h-[80px] px-6 flex items-center justify-between shadow-lg relative z-[1001] border-b border-slate-800">
+  <!-- Header Clean e Profissional Responsivo -->
+  <header class="bg-slate-900 text-white min-h-[72px] px-3 sm:px-6 py-2.5 flex flex-col md:flex-row items-center justify-between gap-2.5 shadow-lg relative z-[1001] border-b border-slate-800">
     
-    <!-- Logo & Identidade Visual DNA -->
-    <div class="flex items-center gap-5">
-      <!-- Logo DNA Vetorizada Inline -->
-      <div class="bg-white px-3 py-2 rounded-xl border border-slate-700/80 shadow-md flex items-center justify-center shrink-0">
-        <svg class="h-8 w-auto" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Linha Superior Mobile / Lado Esquerdo Desktop -->
+    <div class="flex items-center justify-between w-full md:w-auto gap-3">
+      <!-- Logo DNA Vetorizada -->
+      <div class="bg-white px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-slate-700/80 shadow-md flex items-center justify-center shrink-0">
+        <svg class="h-6 sm:h-8 w-auto" viewBox="0 0 320 80" fill="none" xmlns="http://www.w3.org/2000/svg">
           <!-- Símbolo Genético / Onda Hélice DNA -->
           <path d="M 20 55 C 10 35, 30 15, 45 20 C 55 25, 55 45, 65 55 C 75 65, 95 50, 85 25" stroke="#9acd32" stroke-width="7" stroke-linecap="round" fill="none"/>
           <path d="M 20 25 C 35 15, 50 35, 60 45 C 70 55, 80 65, 95 45 C 100 35, 80 15, 65 20" stroke="#0080ff" stroke-width="7" stroke-linecap="round" fill="none"/>
@@ -54,66 +73,78 @@
         </svg>
       </div>
 
-      <!-- Divisória -->
-      <div class="h-9 w-px bg-slate-700/60 hidden sm:block"></div>
+      <!-- Divisória Desktop -->
+      <div class="h-9 w-px bg-slate-700/60 hidden xl:block"></div>
 
       <!-- Título do Sistema -->
-      <div class="hidden sm:block">
+      <div class="hidden xl:block">
         <div class="flex items-center gap-2">
           <h1 class="text-base font-bold text-slate-100 tracking-tight">CRM Comercial Geográfico</h1>
           <span class="text-[10px] font-semibold uppercase tracking-wider bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded border border-sky-500/20">Bahia</span>
         </div>
         <p class="text-xs text-slate-400 mt-0.5">Mapeamento de Cobertura e Check-in com Validação GPS</p>
       </div>
-    </div>
 
-    <!-- Campo de Busca Centralizado -->
-    <div class="relative w-48 sm:w-64 lg:w-80">
-      <div class="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-lg px-3 py-2 text-xs focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500 transition">
-        <i data-lucide="search" class="w-4 h-4 text-slate-400 mr-2 shrink-0"></i>
-        <input type="text" id="search-input" placeholder="Buscar município..." 
-               oninput="onSearchInput(this.value)" 
-               class="bg-transparent border-none outline-none text-white w-full placeholder-slate-400 text-xs">
-      </div>
-      <!-- Sugestões da Busca -->
-      <div id="search-results" class="hidden absolute left-0 right-0 top-full mt-1.5 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto z-[2000] border-t-2 border-t-sky-500"></div>
-    </div>
-
-    <!-- Menu de Ações -->
-    <div class="flex items-center gap-2 sm:gap-3">
-      <!-- Configurar Formulário -->
-      <button onclick="openFormBuilderModal()" title="Personalizar Formulário" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700/80 px-3 py-2 rounded-lg border border-slate-700/80 text-xs font-medium text-slate-200 transition shadow-sm">
-        <i data-lucide="sliders" class="w-4 h-4 text-amber-400"></i>
-        <span class="hidden md:inline">Formulário</span>
-      </button>
-
-      <!-- Gestão de Consultores -->
-      <button onclick="openConsultoresModal()" title="Gerenciar Equipe" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700/80 px-3 py-2 rounded-lg border border-slate-700/80 text-xs font-medium text-slate-200 transition shadow-sm">
-        <i data-lucide="users" class="w-4 h-4 text-sky-400"></i>
-        <span class="hidden md:inline">Consultores</span>
-      </button>
-
-      <div class="h-6 w-px bg-slate-700/60 hidden lg:block"></div>
-
-      <!-- Métricas Clicáveis -->
-      <div class="flex items-center gap-1.5 bg-slate-950/40 p-1 rounded-lg border border-slate-800">
-        <button onclick="openCityList('visited')" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-md transition cursor-pointer">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-          <span class="text-xs font-semibold text-slate-300">Visitados: <strong id="count-visited" class="text-emerald-400">0</strong></span>
+      <!-- Menu de Ações (Visível no Celular ao lado da Logo) -->
+      <div class="flex items-center gap-1.5 md:hidden">
+        <button onclick="openFormBuilderModal()" title="Formulário" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700/80 text-amber-400">
+          <i data-lucide="sliders" class="w-4 h-4"></i>
         </button>
-
-        <button onclick="openCityList('pending')" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 rounded-md transition cursor-pointer">
-          <span class="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"></span>
-          <span class="text-xs font-semibold text-slate-300">Pendentes: <strong id="count-pending" class="text-rose-400">417</strong></span>
+        <button onclick="openConsultoresModal()" title="Consultores" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700/80 text-sky-400">
+          <i data-lucide="users" class="w-4 h-4"></i>
         </button>
-      </div>
-      
-      <!-- Backup -->
-      <div class="flex gap-1 border-l border-slate-700/80 pl-2">
-        <button onclick="exportData()" title="Exportar Relatório / Backup (JSON)" class="p-2 bg-slate-800 hover:bg-slate-700/80 rounded-lg text-slate-300 transition border border-slate-700/80">
+        <button onclick="exportData()" title="Exportar Backup" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700/80 text-slate-300">
           <i data-lucide="download" class="w-4 h-4"></i>
         </button>
-        <label title="Importar Dados" class="p-2 bg-slate-800 hover:bg-slate-700/80 rounded-lg text-slate-300 cursor-pointer transition border border-slate-700/80">
+      </div>
+    </div>
+
+    <!-- Linha Inferior Mobile / Centro Desktop: Busca & Métricas -->
+    <div class="flex items-center justify-between w-full md:w-auto gap-2">
+      <!-- Campo de Busca -->
+      <div class="relative flex-1 md:w-60 lg:w-72">
+        <div class="flex items-center bg-slate-800/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 md:py-2 text-xs focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500 transition">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 mr-2 shrink-0"></i>
+          <input type="text" id="search-input" placeholder="Buscar município..." 
+                 oninput="onSearchInput(this.value)" 
+                 class="bg-transparent border-none outline-none text-white w-full placeholder-slate-400 text-xs">
+        </div>
+        <!-- Sugestões da Busca -->
+        <div id="search-results" class="hidden absolute left-0 right-0 top-full mt-1.5 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl max-h-60 overflow-y-auto z-[2000] border-t-2 border-t-sky-500"></div>
+      </div>
+
+      <!-- Métricas Clicáveis -->
+      <div class="flex items-center gap-1 bg-slate-950/40 p-1 rounded-lg border border-slate-800 shrink-0">
+        <button onclick="openCityList('visited')" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-2 py-1.5 rounded-md transition cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+          <span class="text-[11px] sm:text-xs font-semibold text-slate-300"><span class="hidden sm:inline">Visitados: </span><strong id="count-visited" class="text-emerald-400">0</strong></span>
+        </button>
+
+        <button onclick="openCityList('pending')" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-2 py-1.5 rounded-md transition cursor-pointer">
+          <span class="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"></span>
+          <span class="text-[11px] sm:text-xs font-semibold text-slate-300"><span class="hidden sm:inline">Pendentes: </span><strong id="count-pending" class="text-rose-400">417</strong></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Menu de Ações (Apenas Desktop) -->
+    <div class="hidden md:flex items-center gap-2">
+      <button onclick="openFormBuilderModal()" title="Personalizar Formulário" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg border border-slate-700/80 text-xs font-medium text-slate-200 transition shadow-sm">
+        <i data-lucide="sliders" class="w-4 h-4 text-amber-400"></i>
+        <span class="hidden lg:inline">Formulário</span>
+      </button>
+
+      <button onclick="openConsultoresModal()" title="Gerenciar Equipe" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg border border-slate-700/80 text-xs font-medium text-slate-200 transition shadow-sm">
+        <i data-lucide="users" class="w-4 h-4 text-sky-400"></i>
+        <span class="hidden lg:inline">Consultores</span>
+      </button>
+
+      <!-- Backup -->
+      <div class="flex gap-1 border-l border-slate-700/80 pl-2">
+        <button onclick="exportData()" title="Exportar Relatório / Backup (JSON)" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 transition border border-slate-700/80">
+          <i data-lucide="download" class="w-4 h-4"></i>
+        </button>
+        <label title="Importar Dados" class="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 cursor-pointer transition border border-slate-700/80">
           <i data-lucide="upload" class="w-4 h-4"></i>
           <input type="file" id="import-file" accept=".json" onchange="importData(event)" class="hidden">
         </label>
@@ -122,37 +153,37 @@
   </header>
 
   <!-- Modal: Edição Personalizada de Formulário -->
-  <div id="modal-form-builder" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 text-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-      <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-        <h2 class="text-base font-bold flex items-center gap-2">
-          <i data-lucide="sliders" class="text-amber-400 w-5 h-5"></i>
-          Personalizar Perguntas e Opções da Visita
+  <div id="modal-form-builder" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-slate-900 border border-slate-800 text-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="p-3.5 sm:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+        <h2 class="text-xs sm:text-base font-bold flex items-center gap-2">
+          <i data-lucide="sliders" class="text-amber-400 w-4 h-4 sm:w-5 sm:h-5 shrink-0"></i>
+          <span>Personalizar Perguntas da Visita</span>
         </h2>
         <button onclick="closeFormBuilderModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
       
-      <div id="builder-questions-list" class="p-4 overflow-y-auto space-y-4 flex-1"></div>
+      <div id="builder-questions-list" class="p-3 sm:p-4 overflow-y-auto space-y-3 sm:space-y-4 flex-1"></div>
 
-      <div class="p-4 border-t border-slate-800 flex justify-between items-center bg-slate-900/50">
+      <div class="p-3 sm:p-4 border-t border-slate-800 flex justify-between items-center bg-slate-900/50 gap-2">
         <button onclick="addNewQuestion()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
-          <i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> Adicionar Pergunta
+          <i data-lucide="plus" class="w-4 h-4 text-emerald-400"></i> <span class="hidden sm:inline">Adicionar</span> Pergunta
         </button>
-        <button onclick="saveCustomFormSchema()" class="bg-emerald-600 hover:bg-emerald-500 px-5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
-          <i data-lucide="save" class="w-4 h-4"></i> Salvar Formulário
+        <button onclick="saveCustomFormSchema()" class="bg-emerald-600 hover:bg-emerald-500 px-4 sm:px-5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5">
+          <i data-lucide="save" class="w-4 h-4"></i> Salvar
         </button>
       </div>
     </div>
   </div>
 
   <!-- Modal: Cadastro/Gestão de Consultores -->
-  <div id="modal-consultores" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+  <div id="modal-consultores" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-3 sm:p-4">
     <div class="bg-slate-900 border border-slate-800 text-white rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden">
-      <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-        <h2 class="text-base font-bold flex items-center gap-2">
-          <i data-lucide="user-plus" class="text-sky-400 w-5 h-5"></i>
+      <div class="p-3.5 sm:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+        <h2 class="text-sm sm:text-base font-bold flex items-center gap-2">
+          <i data-lucide="user-plus" class="text-sky-400 w-5 h-5 shrink-0"></i>
           Consultores Comerciais (DNA)
         </h2>
         <button onclick="closeConsultoresModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
@@ -161,8 +192,8 @@
       </div>
       <div class="p-4 space-y-4">
         <div class="flex gap-2">
-          <input type="text" id="new-consultor-name" placeholder="Nome do consultor (ex: Emerson)" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none flex-1 focus:border-sky-500">
-          <button onclick="addConsultor()" class="bg-sky-600 hover:bg-sky-500 px-4 py-2 rounded-lg text-xs font-semibold transition">Adicionar</button>
+          <input type="text" id="new-consultor-name" placeholder="Nome do consultor..." class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none flex-1 focus:border-sky-500">
+          <button onclick="addConsultor()" class="bg-sky-600 hover:bg-sky-500 px-3.5 py-2 rounded-lg text-xs font-semibold transition">Adicionar</button>
         </div>
         <div>
           <h3 class="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Equipe Cadastrada</h3>
@@ -173,10 +204,10 @@
   </div>
 
   <!-- Modal: Lista de Cidades (Visitadas / Pendentes) -->
-  <div id="list-modal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+  <div id="list-modal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[3000] flex items-center justify-center p-3 sm:p-4">
     <div class="bg-slate-900 border border-slate-800 text-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
-      <div class="p-4 border-b border-slate-800 flex justify-between items-center">
-        <h2 id="modal-title" class="text-base font-bold flex items-center gap-2"></h2>
+      <div class="p-3.5 sm:p-4 border-b border-slate-800 flex justify-between items-center">
+        <h2 id="modal-title" class="text-sm sm:text-base font-bold flex items-center gap-2"></h2>
         <button onclick="closeCityList()" class="text-slate-400 hover:text-white p-1 rounded-lg">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
@@ -184,16 +215,16 @@
       <div class="p-3 border-b border-slate-800">
         <input type="text" id="modal-filter" placeholder="Filtrar município ou consultor..." oninput="filterModalList(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none">
       </div>
-      <div id="modal-content" class="p-4 overflow-y-auto flex-1 space-y-2"></div>
+      <div id="modal-content" class="p-3 sm:p-4 overflow-y-auto flex-1 space-y-2"></div>
     </div>
   </div>
 
   <!-- Container do Mapa -->
-  <div class="relative w-full">
+  <div id="map-container" class="relative w-full">
     <!-- Overlay de Carregamento -->
-    <div id="loading" class="absolute inset-0 bg-slate-900/90 z-[1000] flex flex-col items-center justify-center gap-3 text-white">
+    <div id="loading" class="absolute inset-0 bg-slate-900/90 z-[1000] flex flex-col items-center justify-center gap-3 text-white p-4 text-center">
       <div class="w-10 h-10 border-4 border-slate-700 border-t-sky-500 rounded-full animate-spin"></div>
-      <p class="font-semibold text-sm text-slate-300">Carregando mapa dos 417 municípios da Bahia...</p>
+      <p class="font-semibold text-xs sm:text-sm text-slate-300">Carregando mapa dos 417 municípios da Bahia...</p>
     </div>
 
     <!-- Elemento do Mapa -->
@@ -201,7 +232,9 @@
   </div>
 
   <script>
-    const map = L.map('map').setView([-12.9714, -38.5014], 7);
+    const map = L.map('map', {
+      tap: false // Melhor manuseio do toque em dispositivos móveis
+    }).setView([-12.9714, -38.5014], 6);
 
     // Camada de Mapa Base (Esri Topo)
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
@@ -283,9 +316,9 @@
     function renderFormBuilder() {
       const container = document.getElementById('builder-questions-list');
       container.innerHTML = customFormSchema.map((field, idx) => `
-        <div class="bg-slate-800 p-3.5 rounded-lg border border-slate-700 space-y-3 relative text-xs">
-          <div class="flex items-center justify-between gap-2">
-            <input type="text" value="${field.label}" onchange="updateQuestionLabel(${idx}, this.value)" placeholder="Título da Pergunta" class="bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white outline-none font-semibold flex-1 focus:border-amber-400">
+        <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 space-y-2.5 relative text-xs">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <input type="text" value="${field.label}" onchange="updateQuestionLabel(${idx}, this.value)" placeholder="Título da Pergunta" class="bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-white outline-none font-semibold flex-1 min-w-[140px] focus:border-amber-400">
             <select onchange="updateQuestionType(${idx}, this.value)" class="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-slate-300 outline-none">
               <option value="select" ${field.type === 'select' ? 'selected' : ''}>Seleção (Dropdown)</option>
               <option value="text" ${field.type === 'text' ? 'selected' : ''}>Texto Livre</option>
@@ -297,7 +330,7 @@
           </div>
 
           ${field.type === 'select' ? `
-            <div class="pl-3 border-l-2 border-slate-700 space-y-2">
+            <div class="pl-2 sm:pl-3 border-l-2 border-slate-700 space-y-2">
               <label class="block text-[10px] uppercase font-bold text-slate-400">Opções de Resposta</label>
               <div class="space-y-1.5">
                 ${field.options.map((opt, optIdx) => `
@@ -592,9 +625,9 @@
       document.getElementById('modal-filter').value = '';
 
       if (type === 'visited') {
-        title.innerHTML = `<i data-lucide="check-circle-2" class="text-emerald-400 w-5 h-5"></i> Municípios Visitados`;
+        title.innerHTML = `<i data-lucide="check-circle-2" class="text-emerald-400 w-5 h-5 shrink-0"></i> Municípios Visitados`;
       } else {
-        title.innerHTML = `<i data-lucide="clock" class="text-rose-400 w-5 h-5"></i> Municípios Pendentes`;
+        title.innerHTML = `<i data-lucide="clock" class="text-rose-400 w-5 h-5 shrink-0"></i> Municípios Pendentes`;
       }
 
       renderModalItems();
@@ -757,14 +790,14 @@
 
                 const popupContent = `
                   <div class="bg-slate-900 text-white rounded-xl shadow-xl overflow-hidden border border-slate-800 text-xs">
-                    <div class="bg-slate-800 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
-                      <h3 class="font-bold text-sm text-white">${cityName}</h3>
-                      <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isVisited ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
+                    <div class="bg-slate-800 px-3.5 py-2.5 border-b border-slate-700 flex justify-between items-center">
+                      <h3 class="font-bold text-sm text-white truncate pr-2">${cityName}</h3>
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${isVisited ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
                         ${isVisited ? 'VISITADO' : 'PENDENTE'}
                       </span>
                     </div>
 
-                    <div class="p-4 space-y-3 max-h-[360px] overflow-y-auto">
+                    <div class="p-3.5 space-y-3 max-h-[60vh] sm:max-h-[360px] overflow-y-auto">
                       <div>
                         <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Consultor Responsável</label>
                         <select id="select-consultor-${cityCode}" class="w-full bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-sky-500">
@@ -777,8 +810,7 @@
 
                       ${isVisited ? `
                         <div class="bg-slate-800/80 p-2 rounded border border-slate-700/50 text-[10px] space-y-1">
-                          <p class="text-slate-300">Último Check-in: <strong>${info.data} às ${info.hora}</strong></p>
-                          ${info.gps && info.gps.validated ? `<p class="text-emerald-400 font-semibold">✔ Validado via GPS (${info.gps.distanceKm} km do centro)</p>` : ''}
+                          <p class="text-slate-300">Último Check-in: <strong>${info.data} às ${info.hora}</strong></p>${info.gps && info.gps.validated ? `<p class="text-emerald-400 font-semibold">✔ Validado via GPS (${info.gps.distanceKm} km do centro)</p>` : ''}
                         </div>
                       ` : ''}
 
@@ -786,7 +818,7 @@
                         <button onclick="performCheckIn('${cityCode}', '${cityName}', ${center.lat}, ${center.lng})" 
                           class="flex-1 py-2 px-3 rounded-md text-white text-xs font-semibold shadow transition bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center gap-1.5">
                           <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
-                          ${isVisited ? 'Atualizar Check-in (GPS)' : 'Realizar Check-in (GPS)'}
+                          ${isVisited ? 'Atualizar Check-in' : 'Check-in (GPS)'}
                         </button>
                         ${isVisited ? `
                           <button onclick="removeVisit('${cityCode}')" title="Desfazer Check-in" 
